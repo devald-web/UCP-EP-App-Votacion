@@ -4,9 +4,6 @@ using Votacion.API.Models;
 using Votacion.API.DTOs;
 using Google.Cloud.Firestore;
 using System.Security.Claims;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Votacion.API.Controllers
 {
