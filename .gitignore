@@ -1,0 +1,29 @@
+# ===================================================================
+# Archivos de configuración y secretos locales
+# NUNCA subir estos archivos a un repositorio público.
+# ===================================================================
+backend/appsettings.Development.json
+backend/firebase-credentials.json
+
+# ===================================================================
+# Archivos generados por el sistema operativo y editores
+# ===================================================================
+.DS_Store
+.vscode/
+Thumbs.db
+desktop.ini
+
+# ===================================================================
+# Archivos generados por .NET
+# ===================================================================
+**/[Bb]in/
+**/[Oo]bj/
+*.user
+*.suo
+
+# ===================================================================
+# Archivos generados por Node.js / Angular
+# ===================================================================
+**/node_modules/
+.npm
+npm-debug.log*
