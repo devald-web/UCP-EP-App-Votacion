@@ -131,7 +131,6 @@ namespace Votacion.API.Controllers
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            // 1. Empezamos con los claims básicos
             var claims = new List<Claim>
     {
         new Claim(JwtRegisteredClaimNames.Sub, user.Uid),
@@ -140,7 +139,6 @@ namespace Votacion.API.Controllers
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
     };
 
-            // 2. Le pedimos a Firebase los roles personalizados (custom claims)
             if (user.CustomClaims != null)
             {
                 foreach (var claim in user.CustomClaims)
@@ -148,13 +146,13 @@ namespace Votacion.API.Controllers
                     claims.Add(new Claim(claim.Key, claim.Value.ToString()));
                 }
             }
-            // --- FIN DE LA LÓGICA MEJORADA ---
 
             var token = new JwtSecurityToken(
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
-                claims: claims, // Usamos la lista de claims que ahora incluye el rol
-                expires: DateTime.Now.AddHours(8),
+                claims: claims,
+                // --- CAMBIO PRINCIPAL: Expiración a 30 minutos ---
+                expires: DateTime.Now.AddMinutes(30),
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);

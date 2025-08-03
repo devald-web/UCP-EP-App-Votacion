@@ -26,9 +26,19 @@ namespace Votacion.API.Controllers
 
         // POST /api/encuestas
         [HttpPost]
-        [Authorize(Roles = "admin")] // Solo usuarios con el rol "admin" pueden crear
+        // [Authorize(Roles = "admin")] // Comentado: cualquier usuario autenticado puede crear encuestas
         public async Task<IActionResult> CrearEncuesta([FromBody] CrearEncuestaDto encuestaDto)
         {
+            // Debug logs
+            Console.WriteLine($"Received DTO: Titulo='{encuestaDto?.Titulo}', Opciones Count={encuestaDto?.Opciones?.Count}");
+            if (encuestaDto?.Opciones != null)
+            {
+                for (int i = 0; i < encuestaDto.Opciones.Count; i++)
+                {
+                    Console.WriteLine($"Opcion {i}: '{encuestaDto.Opciones[i]}'");
+                }
+            }
+
             var userUid = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var userDisplayName = User.FindFirstValue("displayName");
 
@@ -128,7 +138,7 @@ namespace Votacion.API.Controllers
 
         // DELETE /api/encuestas/{id}
         [HttpDelete("{id}")]
-        [Authorize(Roles = "admin")] // Solo admins pueden borrar
+        // [Authorize(Roles = "admin")] // Comentado: cualquier usuario autenticado puede eliminar encuestas
         public async Task<IActionResult> BorrarEncuesta(string id)
         {
             var docRef = _encuestasCollection.Document(id);

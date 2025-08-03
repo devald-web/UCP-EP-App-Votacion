@@ -7,8 +7,8 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
-      <div class="max-w-md w-full space-y-8 p-8 bg-white rounded-xl shadow-2xl">
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 -mt-20 pt-20">
+      <div class="max-w-md w-full space-y-8 p-8 bg-white rounded-xl shadow-2xl mx-4">
         <div class="text-center">
           <h1 class="text-4xl font-bold text-gray-900 mb-2">
             Sistema de Votación
