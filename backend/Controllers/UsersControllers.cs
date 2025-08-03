@@ -51,7 +51,7 @@ namespace Votacion.API.Controllers
             {
                 // Verificar credenciales usando Firebase REST API
                 var isValidCredentials = await VerifyCredentialsAsync(request.Email, request.Password);
-                
+
                 if (!isValidCredentials)
                 {
                     return Unauthorized(new { Message = "El correo o la contraseña son incorrectos." });
@@ -84,9 +84,9 @@ namespace Votacion.API.Controllers
                 var firebaseApiKey = _config["Firebase:ApiKey"];
                 var jwtKey = _config["Jwt:Key"];
                 var jwtIssuer = _config["Jwt:Issuer"];
-                
-                return Ok(new 
-                { 
+
+                return Ok(new
+                {
                     Message = "Firebase configuration is working correctly",
                     HasFirebaseApiKey = !string.IsNullOrEmpty(firebaseApiKey),
                     HasJwtKey = !string.IsNullOrEmpty(jwtKey),
@@ -106,7 +106,7 @@ namespace Votacion.API.Controllers
             {
                 var firebaseApiKey = _config["Firebase:ApiKey"] ?? throw new ArgumentNullException("Firebase:ApiKey is not configured.");
                 var requestUri = $"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebaseApiKey}";
-                
+
                 var requestBody = new
                 {
                     email = email,
@@ -131,22 +131,61 @@ namespace Votacion.API.Controllers
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            // 1. Empezamos con los claims básicos
+            var claims = new List<Claim>
+    {
+        new Claim(JwtRegisteredClaimNames.Sub, user.Uid),
+        new Claim(JwtRegisteredClaimNames.Email, user.Email!),
+        new Claim("displayName", user.DisplayName ?? ""),
+        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+    };
+
+            // 2. Le pedimos a Firebase los roles personalizados (custom claims)
+            if (user.CustomClaims != null)
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Uid),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email!),
-                new Claim("displayName", user.DisplayName ?? ""),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
+                foreach (var claim in user.CustomClaims)
+                {
+                    claims.Add(new Claim(claim.Key, claim.Value.ToString()));
+                }
+            }
+            // --- FIN DE LA LÓGICA MEJORADA ---
 
             var token = new JwtSecurityToken(
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
-                claims: claims,
+                claims: claims, // Usamos la lista de claims que ahora incluye el rol
                 expires: DateTime.Now.AddHours(8),
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+        [HttpPost("set-admin-claim/{email}")]
+        public async Task<IActionResult> SetAdminClaim(string email)
+        {
+            try
+            {
+                // Primero, obtenemos el usuario por su email
+                var user = await FirebaseAuth.DefaultInstance.GetUserByEmailAsync(email);
+                if (user == null)
+                {
+                    return NotFound(new { Message = "Usuario no encontrado." });
+                }
+
+                // Creamos el "claim" personalizado. Esto es lo que se añade al token.
+                var claims = new Dictionary<string, object>()
+        {
+            { "role", "admin" }
+        };
+
+                // Establecemos el claim para ese usuario
+                await FirebaseAuth.DefaultInstance.SetCustomUserClaimsAsync(user.Uid, claims);
+
+                return Ok(new { Message = $"El rol de 'admin' ha sido asignado a {email}." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = $"Ocurrió un error: {ex.Message}" });
+            }
         }
     }
 }

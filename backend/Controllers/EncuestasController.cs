@@ -4,11 +4,15 @@ using Votacion.API.Models;
 using Votacion.API.DTOs;
 using Google.Cloud.Firestore;
 using System.Security.Claims;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Votacion.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize] // Protegeremos todo el controlador por defecto
     public class EncuestasController : ControllerBase
     {
         private readonly FirestoreDb _db;
@@ -20,20 +24,13 @@ namespace Votacion.API.Controllers
             _encuestasCollection = _db.Collection("encuestas");
         }
 
-        // Endpoint para crear una nueva encuesta.
-        // [Authorize] asegura que solo usuarios con un token JWT válido puedan acceder.
+        // POST /api/encuestas
         [HttpPost]
-        [Authorize]
+        [Authorize(Roles = "admin")] // Solo usuarios con el rol "admin" pueden crear
         public async Task<IActionResult> CrearEncuesta([FromBody] CrearEncuestaDto encuestaDto)
         {
-            // Obtenemos la información del usuario desde el token JWT.
             var userUid = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var userDisplayName = User.FindFirstValue("displayName");
-
-            if (string.IsNullOrEmpty(userUid) || string.IsNullOrEmpty(userDisplayName))
-            {
-                return Unauthorized("La información del usuario no se encontró en el token.");
-            }
 
             var nuevaEncuesta = new Encuesta
             {
@@ -43,24 +40,29 @@ namespace Votacion.API.Controllers
                 Opciones = encuestaDto.Opciones.Select(texto => new Opcion { Texto = texto }).ToList()
             };
 
-            // Añadimos la encuesta a Firestore. Firestore generará un ID automáticamente.
             var documentRef = await _encuestasCollection.AddAsync(nuevaEncuesta);
             nuevaEncuesta.Id = documentRef.Id;
 
             return CreatedAtAction(nameof(GetEncuestaPorId), new { id = nuevaEncuesta.Id }, nuevaEncuesta);
         }
 
-        // Endpoint para obtener todas las encuestas. Es público.
+        // GET /api/encuestas
         [HttpGet]
+        [AllowAnonymous] // Todos, incluso sin loguear, pueden ver las encuestas
         public async Task<IActionResult> GetTodasLasEncuestas()
         {
             var snapshot = await _encuestasCollection.OrderByDescending("FechaCreacion").GetSnapshotAsync();
-            var encuestas = snapshot.Documents.Select(doc => doc.ConvertTo<Encuesta>()).ToList();
+            var encuestas = snapshot.Documents.Select(doc => {
+                var encuesta = doc.ConvertTo<Encuesta>();
+                encuesta.Id = doc.Id; // Asegurarse de que el ID esté asignado
+                return encuesta;
+            }).ToList();
             return Ok(encuestas);
         }
 
-        // Endpoint para obtener una encuesta específica por su ID. Es público.
+        // GET /api/encuestas/{id}
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetEncuestaPorId(string id)
         {
             var documentSnapshot = await _encuestasCollection.Document(id).GetSnapshotAsync();
@@ -69,7 +71,75 @@ namespace Votacion.API.Controllers
                 return NotFound("No se encontró la encuesta.");
             }
             var encuesta = documentSnapshot.ConvertTo<Encuesta>();
+            encuesta.Id = documentSnapshot.Id;
             return Ok(encuesta);
+        }
+
+        // POST /api/encuestas/{idEncuesta}/votar/{idOpcion}
+        [HttpPost("{idEncuesta}/votar/{idOpcion}")]
+        public async Task<IActionResult> Votar(string idEncuesta, string idOpcion)
+        {
+            var userUid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userUid))
+            {
+                return Unauthorized();
+            }
+
+            var encuestaRef = _encuestasCollection.Document(idEncuesta);
+
+            try
+            {
+                var encuestaActualizada = await _db.RunTransactionAsync(async transaction =>
+                {
+                    var snapshot = await transaction.GetSnapshotAsync(encuestaRef);
+                    if (!snapshot.Exists) throw new Exception("No se encontró la encuesta.");
+
+                    var encuesta = snapshot.ConvertTo<Encuesta>();
+                    
+                    // --- VERIFICAR SI YA VOTÓ ---
+                    if (encuesta.VotantesUids.Contains(userUid))
+                    {
+                        throw new Exception("El usuario ya ha votado en esta encuesta.");
+                    }
+
+                    var opcionAVotar = encuesta.Opciones.FirstOrDefault(o => o.Id == idOpcion);
+                    if (opcionAVotar == null) throw new Exception("No se encontró la opción especificada.");
+                    
+                    opcionAVotar.Votos++;
+                    encuesta.VotantesUids.Add(userUid); // Añadir al votante a la lista
+
+                    transaction.Set(encuestaRef, encuesta);
+                    encuesta.Id = snapshot.Id;
+                    return encuesta;
+                });
+
+                return Ok(encuestaActualizada);
+            }
+            catch (Exception ex)
+            {
+                // Si el error es porque ya votó, enviamos un 409 Conflict
+                if (ex.Message.Contains("ya ha votado"))
+                {
+                    return Conflict(new { Message = ex.Message });
+                }
+                return NotFound(new { Message = ex.Message });
+            }
+        }
+
+        // DELETE /api/encuestas/{id}
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "admin")] // Solo admins pueden borrar
+        public async Task<IActionResult> BorrarEncuesta(string id)
+        {
+            var docRef = _encuestasCollection.Document(id);
+            var snapshot = await docRef.GetSnapshotAsync();
+            if (!snapshot.Exists)
+            {
+                return NotFound();
+            }
+
+            await docRef.DeleteAsync();
+            return NoContent(); // 204 No Content es la respuesta estándar para un DELETE exitoso
         }
     }
 }

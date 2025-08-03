@@ -1,0 +1,28 @@
+<div class="space-y-8">
+  <h2 class="text-3xl font-bold text-gray-800">Panel de Administración</h2>
+
+  <!-- Formulario para crear nueva encuesta -->
+  <div class="p-6 bg-white rounded-lg shadow-md">
+    <h3 class="text-xl font-semibold mb-4">Crear Nueva Encuesta</h3>
+    <form (ngSubmit)="onCreatePoll()" class="space-y-4">
+      <div>
+        <label for="newPollTitle" class="block text-sm font-medium text-gray-700">Título</label>
+        <input id="newPollTitle" type="text" [(ngModel)]="newPoll.titulo" name="newPollTitle" required class="w-full px-3 py-2 mt-1 border rounded-md">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Opciones (una por línea)</label>
+        <textarea [(ngModel)]="newPoll.opciones" name="newPollOptions" rows="4" required class="w-full px-3 py-2 mt-1 border rounded-md"></textarea>
+      </div>
+      <button type="submit" class="px-6 py-2 font-bold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Crear Encuesta</button>
+    </form>
+  </div>
+
+  <!-- Lista de encuestas existentes -->
+  <div class="p-6 bg-white rounded-lg shadow-md">
+    <h3 class="text-xl font-semibold mb-4">Gestionar Encuestas</h3>
+    <div *ngFor="let poll of polls" class="flex items-center justify-between p-3 border-b hover:bg-gray-50">
+      <span>{{ poll.titulo }}</span>
+      <button (click)="onDeletePoll(poll.id)" class="px-3 py-1 text-sm font-semibold text-white bg-red-500 rounded-md hover:bg-red-600">Eliminar</button>
+    </div>
+  </div>
+</div>
